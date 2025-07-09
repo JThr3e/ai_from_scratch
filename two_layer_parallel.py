@@ -13,9 +13,11 @@ class MLP:
         self.b3 = np.zeros((1, output_size))
     
     def sigmoid(self, x):
+        #return x * (x>0) + (0.1*x*(x<0))
         return 1 / (1 + np.exp(-x))
     
     def sigmoid_derivative(self, x):
+        #return 1.0 * (x>0) + (0.1 * (x<0))
         return x * (1 - x)
 
     def forward(self, x):
@@ -47,11 +49,11 @@ class MLP:
         
         # calculate the gradients at each of the leaves
         W3 = np.matmul(self.a2.T, output_delta)
-        b3 = output_delta         
+        b3 = np.sum(output_delta, axis= 0, keepdims=True)
         W2 = np.matmul(self.a1.T, hidden_delta1)
-        b2 = hidden_delta1
+        b2 = np.sum(hidden_delta1, axis= 0, keepdims=True)
         W1 = np.matmul(np.expand_dims(x,1), hidden_delta) 
-        b1 = hidden_delta
+        b1 = np.sum(hidden_delta, axis= 0, keepdims=True) 
 
         return [W3, b3, W2, b2, W1, b1] 
 
