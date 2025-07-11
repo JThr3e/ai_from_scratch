@@ -12,6 +12,11 @@ class MLP:
     def __init__(self, input_size, hidden_size, hidden_size2, output_size, grad_sync, lock, pid):
         # Initialize weights and biases with random values
 
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.hidden_size2 = hidden_size2
+        self.output_size = output_size
+
         np.random.seed(42) # ensure random params are same across all replicas
         self.W1 = np.random.randn(input_size, hidden_size) 
         self.b1 = np.zeros((1, hidden_size))
@@ -100,12 +105,12 @@ class MLP:
                 self.grad_sync[5][:, :] = 0 
 
     def zero_grad(self):
-        W3_shape=(256, 10)
-        b3_shape=(1, 10)
-        W2_shape=(256, 256)
-        b2_shape=(1, 256)
-        W1_shape=(784, 256)
-        b1_shape=(1, 256)
+        W3_shape=(self.hidden_size2, self.output_size)
+        b3_shape=(1, self.output_size)
+        W2_shape=(self.hidden_size, self.hidden_size2)
+        b2_shape=(1, self.hidden_size2)
+        W1_shape=(self.input_size, self.hidden_size)
+        b1_shape=(1, self.hidden_size)
         return [np.zeros(W3_shape), np.zeros(b3_shape), np.zeros(W2_shape), np.zeros(b2_shape), np.zeros(W1_shape), np.zeros(b1_shape)]
     
     def train(self, X, y, epochs, learning_rate):
@@ -146,7 +151,7 @@ def print_mnist(x):
         print()
 
 
-def dp_worker(pid, lock, grad_sync_mem, data, label, epochs, learning):
+def dp_worker(pid, lock, grad_sync_mem, sizes, data, label, epochs, learning):
     
     W3_shm = shared_memory.SharedMemory(name=grad_sync_mem[0])
     b3_shm = shared_memory.SharedMemory(name=grad_sync_mem[1])
@@ -154,13 +159,17 @@ def dp_worker(pid, lock, grad_sync_mem, data, label, epochs, learning):
     b2_shm = shared_memory.SharedMemory(name=grad_sync_mem[3])
     W1_shm = shared_memory.SharedMemory(name=grad_sync_mem[4])
     b1_shm = shared_memory.SharedMemory(name=grad_sync_mem[5])
+    input_size= sizes[0]
+    hidden_size= sizes[1]
+    hidden_size2=sizes[2]
+    output_size=sizes[3]
 
-    W3_shape=(256, 10)
-    b3_shape=(1, 10)
-    W2_shape=(256, 256)
-    b2_shape=(1, 256)
-    W1_shape=(784, 256)
-    b1_shape=(1, 256)
+    W3_shape=(hidden_size2, output_size)
+    b3_shape=(1, output_size)
+    W2_shape=(hidden_size, hidden_size2)
+    b2_shape=(1, hidden_size2)
+    W1_shape=(input_size, hidden_size)
+    b1_shape=(1, hidden_size)
     grad_dtype = np.float64
 
     W3_grad = np.ndarray(W3_shape, dtype=grad_dtype, buffer=W3_shm.buf)
@@ -172,7 +181,7 @@ def dp_worker(pid, lock, grad_sync_mem, data, label, epochs, learning):
 
     grad_sync = [W3_grad, b3_grad, W2_grad, b2_grad, W1_grad, b1_grad]
 
-    mlp = MLP(input_size= 784, hidden_size=256, hidden_size2=256, output_size=10, grad_sync=grad_sync, lock=lock, pid=pid)
+    mlp = MLP(input_size=input_size, hidden_size=hidden_size, hidden_size2=hidden_size2, output_size=output_size, grad_sync=grad_sync, lock=lock, pid=pid)
 
     # Train for 10000 epochs with learning t_train_procrate 0.1
     mlp.train(data, label, epochs=epochs, learning_rate=learning)
@@ -194,13 +203,23 @@ if __name__ == "__main__":
 
     print(t_train_proc[0])
 
-    W3_shape=(256, 10)
-    b3_shape=(1, 10)
-    W2_shape=(256, 256)
-    b2_shape=(1, 256)
-    W1_shape=(784, 256)
-    b1_shape=(1, 256)
+
+    input_size= 784
+    hidden_size=512
+    hidden_size2=256
+    output_size=10
+    sizes = [input_size, hidden_size, hidden_size2, output_size]
+
     grad_dtype = np.float64
+    W3_shape=(hidden_size2, output_size)
+    b3_shape=(1, output_size)
+    W2_shape=(hidden_size, hidden_size2)
+    b2_shape=(1, hidden_size2)
+    W1_shape=(input_size, hidden_size)
+    b1_shape=(1, hidden_size)
+    grad_dtype = np.float64
+
+
 
     W3_shm =shared_memory.SharedMemory(create=True, size=np.prod(W3_shape) * np.dtype(grad_dtype).itemsize)
     b3_shm =shared_memory.SharedMemory(create=True, size=np.prod(b3_shape) * np.dtype(grad_dtype).itemsize)
@@ -238,7 +257,7 @@ if __name__ == "__main__":
         labels = t_train_proc[start:end][:]
         print(data.shape)
         print(labels.shape)
-        p = mp.Process(target=dp_worker, args=(i, lock, grad_sync_mem_names, data, labels, 100, 0.01))
+        p = mp.Process(target=dp_worker, args=(i, lock, grad_sync_mem_names, sizes, data, labels, 100, 0.01))
         p.start()
 
     for p in processes:
