@@ -14,11 +14,9 @@ class MLP:
         self.b3 = np.zeros((1, output_size))
     
     def sigmoid(self, x):
-        #return x * (x > 0)
         return 1 / (1 + np.exp(-x))
     
     def sigmoid_derivative(self, x):
-        #return 1.0 * (x>0)
         return x * (1 - x)
 
     def forward(self, x):
@@ -109,7 +107,6 @@ if __name__ == "__main__":
     mlp = MLP(input_size= 784, hidden_size=256, hidden_size2=256, output_size= 10)
     
     # Train for 10000 epochs with learning t_train_procrate 0.1
-    #mlp.train(X, y, epochs= 100000, learning_rate= 0.1)
     mlp.train(x_train, t_train_proc, epochs= 100, learning_rate= 0.1)
     
     # Test predictions
